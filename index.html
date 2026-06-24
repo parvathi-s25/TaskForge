@@ -1,0 +1,2048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskForge — Intelligent Task Scheduling Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#0a0a0f;
+  --surface:#12121a;
+  --surface-2:#171724;
+  --border:#1e1e2e;
+  --indigo:#6366f1;
+  --indigo-light:#818cf8;
+  --indigo-dim:rgba(99,102,241,0.12);
+  --p1:#ef4444;
+  --p2:#f59e0b;
+  --p3:#22c55e;
+  --text:#e7e7f3;
+  --text-dim:#9696ad;
+  --text-dimmer:#65657a;
+  --radius:12px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Space Grotesk',sans-serif;
+  display:flex;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+a{text-decoration:none;color:inherit;}
+button{font-family:'Space Grotesk',sans-serif;cursor:pointer;}
+input,select,textarea{font-family:'Space Grotesk',sans-serif;}
+
+/* ===== Scrollbars ===== */
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:#2a2a3e;}
+
+/* ===== Sidebar ===== */
+.sidebar{
+  width:220px;
+  flex-shrink:0;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  position:sticky;
+  top:0;
+  height:100vh;
+  z-index:50;
+  transition:width 0.2s ease;
+}
+.logo-row{
+  display:flex;
+  align-items:center;
+  gap:0.6rem;
+  padding:1.25rem 1.25rem 1rem;
+  border-bottom:1px solid var(--border);
+}
+.logo-bolt{
+  width:30px;height:30px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--indigo),#8b5cf6);
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 16px rgba(99,102,241,0.45);
+}
+.logo-text{font-weight:700;font-size:1.05rem;letter-spacing:-0.02em;white-space:nowrap;}
+.logo-text span{color:var(--indigo-light);}
+
+.sidebar-nav{flex:1;padding:1rem 0.75rem;display:flex;flex-direction:column;gap:0.25rem;}
+.nav-item{
+  display:flex;align-items:center;gap:0.75rem;
+  padding:0.65rem 0.85rem;
+  border-radius:8px;
+  color:var(--text-dim);
+  font-size:0.88rem;
+  font-weight:500;
+  border-left:3px solid transparent;
+  transition:all 0.2s ease;
+  white-space:nowrap;
+  position:relative;
+}
+.nav-item i{font-size:1.1rem;width:20px;text-align:center;flex-shrink:0;}
+.nav-item:hover{
+  background:rgba(99,102,241,0.08);
+  border-left-color:rgba(99,102,241,0.5);
+  color:var(--text);
+  transform:translateX(2px);
+}
+.nav-item.active{
+  background:var(--indigo-dim);
+  border-left-color:var(--indigo);
+  color:#fff;
+}
+.nav-item.active i{color:var(--indigo-light);}
+
+.sidebar-footer{padding:1rem 0.85rem 1.25rem;border-top:1px solid var(--border);}
+.dsa-badge{
+  background:var(--indigo-dim);
+  border:1px solid rgba(99,102,241,0.35);
+  color:var(--indigo-light);
+  font-size:0.7rem;
+  font-weight:600;
+  padding:0.5rem 0.6rem;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.dsa-badge .pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--p3);flex-shrink:0;box-shadow:0 0 6px var(--p3);animation:pulse 2s infinite;}
+
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+
+/* ===== App content ===== */
+.app-content{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden;}
+.topbar{
+  height:64px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1.75rem;
+  border-bottom:1px solid var(--border);
+  background:rgba(18,18,26,0.6);
+  backdrop-filter:blur(8px);
+}
+.topbar h1{font-size:1.15rem;margin:0;font-weight:600;letter-spacing:-0.01em;}
+.topbar-right{display:flex;align-items:center;gap:1.25rem;}
+.live-clock{font-family:'JetBrains Mono',monospace;font-size:0.95rem;color:var(--text-dim);letter-spacing:0.02em;}
+.status-badge{
+  display:flex;align-items:center;gap:0.5rem;
+  background:rgba(34,197,94,0.1);
+  border:1px solid rgba(34,197,94,0.3);
+  color:var(--p3);
+  font-size:0.78rem;font-weight:600;
+  padding:0.35rem 0.7rem;border-radius:20px;
+}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--p3);box-shadow:0 0 8px var(--p3);animation:pulse 2s infinite;}
+
+.sections-wrapper{flex:1;overflow-y:auto;padding:1.5rem 1.75rem 2.5rem;}
+.page-section{display:none;}
+.page-section.active{display:block;animation:fadein 0.25s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+.section-header{margin-bottom:1.5rem;}
+.section-header h2{font-size:1.4rem;margin:0 0 0.25rem;font-weight:700;letter-spacing:-0.01em;}
+.section-header p{margin:0;color:var(--text-dim);font-size:0.88rem;}
+
+/* ===== Dashboard layout ===== */
+.dashboard-layout{display:flex;gap:1.5rem;align-items:flex-start;}
+.dashboard-main{flex:1;min-width:0;}
+.dashboard-side{width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:1.25rem;}
+
+/* ===== Cards ===== */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:1.25rem;
+}
+.card-title{font-size:0.95rem;font-weight:600;margin:0 0 0.9rem;display:flex;align-items:center;justify-content:space-between;}
+
+/* ===== Stats row ===== */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.75rem;}
+.stat-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:1.1rem 1.2rem;
+  transition:all 0.2s ease;
+}
+.stat-card:hover{border-color:rgba(99,102,241,0.4);transform:translateY(-2px);}
+.stat-label{font-size:0.75rem;color:var(--text-dim);font-weight:500;margin-bottom:0.5rem;}
+.stat-value{font-family:'JetBrains Mono',monospace;font-size:1.7rem;font-weight:600;display:flex;align-items:baseline;gap:0.5rem;}
+.stat-trend{font-size:0.72rem;font-weight:600;display:flex;align-items:center;gap:0.15rem;}
+.trend-up{color:var(--p3);}
+.trend-down{color:var(--p1);}
+
+/* ===== Queue section ===== */
+.queue-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1rem;}
+.queue-header h3{font-size:1.05rem;margin:0;font-weight:700;}
+.queue-header span{font-size:0.8rem;color:var(--text-dim);}
+#taskList{display:flex;flex-direction:column;gap:0.7rem;margin-bottom:1.75rem;}
+
+.task-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-left:4px solid var(--p2);
+  border-radius:10px;
+  padding:0.95rem 1.1rem;
+  display:flex;
+  align-items:center;
+  gap:1rem;
+  transition:all 0.2s ease;
+  position:relative;
+  overflow:hidden;
+}
+.task-card.p1{border-left-color:var(--p1);}
+.task-card.p2{border-left-color:var(--p2);}
+.task-card.p3{border-left-color:var(--p3);}
+.task-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px -8px var(--glow,rgba(99,102,241,0.4));}
+.task-card.p1:hover{--glow:rgba(239,68,68,0.4);}
+.task-card.p2:hover{--glow:rgba(245,158,11,0.4);}
+.task-card.p3:hover{--glow:rgba(34,197,94,0.4);}
+.task-card.executing{animation:flashExec 0.6s ease;}
+@keyframes flashExec{0%,100%{background:var(--surface);}50%{background:rgba(99,102,241,0.25);}}
+
+.priority-badge{
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.7rem;font-weight:700;
+  padding:0.25rem 0.5rem;
+  border-radius:6px;
+  flex-shrink:0;
+}
+.priority-badge.p1{background:rgba(239,68,68,0.15);color:var(--p1);}
+.priority-badge.p2{background:rgba(245,158,11,0.15);color:var(--p2);}
+.priority-badge.p3{background:rgba(34,197,94,0.15);color:var(--p3);}
+
+.task-info{flex:1;min-width:0;}
+.task-name{font-weight:600;font-size:0.95rem;margin-bottom:0.3rem;}
+.task-meta{display:flex;align-items:center;gap:0.9rem;font-size:0.78rem;color:var(--text-dim);flex-wrap:wrap;}
+.task-meta i{margin-right:0.25rem;}
+.task-tag{background:var(--surface-2);padding:0.18rem 0.55rem;border-radius:6px;font-size:0.72rem;color:var(--text-dim);}
+
+.task-actions{display:flex;gap:0.5rem;flex-shrink:0;}
+.btn{
+  border:none;border-radius:7px;
+  padding:0.5rem 0.9rem;
+  font-size:0.8rem;font-weight:600;
+  transition:all 0.2s ease;
+  white-space:nowrap;
+}
+.btn-primary{background:var(--indigo);color:#fff;}
+.btn-primary:hover{background:var(--indigo-light);box-shadow:0 0 16px rgba(99,102,241,0.5);}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-dim);}
+.btn-ghost:hover{border-color:var(--indigo);color:var(--indigo-light);}
+.btn-block{width:100%;padding:0.7rem;font-size:0.85rem;}
+
+/* ===== Heap visualizer ===== */
+.visualizer-box{
+  border:1.5px dashed var(--border);
+  border-radius:var(--radius);
+  min-height:280px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  color:var(--text-dimmer);
+  font-size:0.85rem;
+  position:relative;
+  background:rgba(255,255,255,0.01);
+  overflow:hidden;
+}
+.visualizer-label{margin-top:0.5rem;font-size:0.75rem;color:var(--text-dim);text-align:center;}
+#heapSvgWrap{width:100%;}
+
+/* ===== Forms ===== */
+.form-group{margin-bottom:0.9rem;}
+.form-label{display:block;font-size:0.78rem;color:var(--text-dim);margin-bottom:0.4rem;font-weight:500;}
+.form-control{
+  width:100%;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:0.55rem 0.7rem;
+  color:var(--text);
+  font-size:0.85rem;
+  outline:none;
+  transition:all 0.2s ease;
+}
+.form-control:focus{border-color:var(--indigo);box-shadow:0 0 0 3px rgba(99,102,241,0.18);}
+textarea.form-control{resize:vertical;font-family:'Space Grotesk',sans-serif;}
+select.form-control{cursor:pointer;}
+select.form-control option[value="1"]{color:var(--p1);}
+select.form-control option[value="2"]{color:var(--p2);}
+select.form-control option[value="3"]{color:var(--p3);}
+
+/* ===== Activity log ===== */
+.activity-list{display:flex;flex-direction:column;gap:0.65rem;max-height:220px;overflow-y:auto;}
+.activity-item{display:flex;align-items:flex-start;gap:0.55rem;font-size:0.78rem;color:var(--text-dim);}
+.activity-dot{width:7px;height:7px;border-radius:50%;margin-top:0.3rem;flex-shrink:0;}
+.activity-item .mono{color:var(--text-dimmer);}
+
+/* ===== Quick load ===== */
+.quick-load-grid{display:flex;flex-direction:column;gap:0.55rem;}
+
+/* ===== Toasts ===== */
+#toastContainer{position:fixed;z-index:999;display:flex;flex-direction:column;gap:0.6rem;padding:1.25rem;pointer-events:none;}
+#toastContainer.pos-bottom-right{bottom:0;right:0;align-items:flex-end;}
+#toastContainer.pos-bottom-left{bottom:0;left:0;align-items:flex-start;}
+#toastContainer.pos-top-right{top:0;right:0;align-items:flex-end;}
+#toastContainer.pos-top-left{top:0;left:0;align-items:flex-start;}
+.toast{
+  pointer-events:auto;
+  min-width:260px;max-width:340px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-left:4px solid var(--indigo);
+  border-radius:9px;
+  padding:0.7rem 0.9rem;
+  font-size:0.82rem;
+  box-shadow:0 10px 30px -10px rgba(0,0,0,0.6);
+  animation:slideIn 0.25s ease;
+}
+.toast.fade-out{animation:fadeOut 0.3s ease forwards;}
+@keyframes slideIn{from{opacity:0;transform:translateX(40px);}to{opacity:1;transform:translateX(0);}}
+@keyframes fadeOut{to{opacity:0;transform:translateX(40px);}}
+.toast.success{border-left-color:var(--p3);}
+.toast.warning{border-left-color:var(--p2);}
+.toast.error{border-left-color:var(--p1);}
+.toast.info{border-left-color:var(--indigo);}
+
+/* ===== Algorithm Lab ===== */
+#runSimulationBtn{margin-bottom:1.25rem;}
+.algo-columns{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem;margin-bottom:1.5rem;}
+.algo-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem;}
+.algo-badge{display:inline-flex;align-items:center;gap:0.3rem;font-size:0.7rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:20px;margin-bottom:0.85rem;}
+.algo-badge.indigo{background:var(--indigo-dim);color:var(--indigo-light);border:1px solid rgba(99,102,241,0.35);}
+.algo-badge.gray{background:rgba(150,150,173,0.12);color:var(--text-dim);border:1px solid var(--border);}
+.algo-badge.amber{background:rgba(245,158,11,0.12);color:var(--p2);border:1px solid rgba(245,158,11,0.3);}
+.algo-task-row{
+  display:flex;align-items:center;gap:0.6rem;
+  padding:0.5rem 0.6rem;border-radius:7px;
+  background:var(--surface-2);
+  margin-bottom:0.4rem;
+  font-size:0.78rem;
+  transition:all 0.2s ease;
+  border:1px solid transparent;
+}
+.algo-task-row.danger{border-color:rgba(239,68,68,0.5);background:rgba(239,68,68,0.08);color:#fca5a5;}
+.algo-task-row.simulating{border-color:var(--indigo);box-shadow:0 0 14px rgba(99,102,241,0.45);}
+.algo-order-num{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text-dimmer);width:18px;flex-shrink:0;}
+.algo-task-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.algo-stat{margin-top:0.85rem;padding-top:0.75rem;border-top:1px solid var(--border);font-size:0.78rem;color:var(--text-dim);}
+.algo-stat .mono{color:var(--text);font-weight:600;}
+.why-box{
+  background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(99,102,241,0.04));
+  border:1px solid rgba(99,102,241,0.3);
+  border-radius:var(--radius);
+  padding:1.25rem;margin-bottom:1.5rem;
+}
+.why-box h4{margin:0 0 0.7rem;font-size:1rem;}
+.why-box ul{margin:0;padding-left:1.2rem;font-size:0.85rem;color:var(--text-dim);line-height:1.7;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;}
+.chart-container{position:relative;height:240px;}
+
+/* ===== Analytics ===== */
+.analytics-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;}
+.analytics-stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.4rem;text-align:center;}
+.analytics-stat-card .stat-value{font-size:2.1rem;justify-content:center;}
+.analytics-charts{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.5rem;}
+.chart-card h4{margin:0 0 1rem;font-size:0.95rem;}
+table.history-table{width:100%;border-collapse:collapse;font-size:0.8rem;}
+table.history-table th{text-align:left;padding:0.6rem 0.8rem;color:var(--text-dim);border-bottom:1px solid var(--border);font-weight:600;}
+table.history-table td{padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);}
+table.history-table tbody tr:nth-child(even){background:rgba(255,255,255,0.015);}
+.empty-state{text-align:center;color:var(--text-dimmer);padding:1.5rem;font-size:0.85rem;}
+.health-card{display:flex;align-items:center;gap:2rem;flex-wrap:wrap;}
+.health-ring-wrap{position:relative;width:140px;height:140px;flex-shrink:0;}
+.health-ring-wrap svg{transform:rotate(-90deg);}
+.health-score-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:1.9rem;font-weight:700;}
+.health-breakdown{flex:1;min-width:220px;}
+.health-breakdown ul{margin:0;padding-left:1.1rem;font-size:0.83rem;color:var(--text-dim);line-height:1.8;}
+
+/* ===== Notifications ===== */
+.toggle-row{display:flex;align-items:center;gap:0.9rem;padding:0.7rem 0;border-bottom:1px solid var(--border);}
+.toggle-row:last-child{border-bottom:none;}
+.toggle-row i{font-size:1.2rem;color:var(--indigo-light);width:22px;text-align:center;flex-shrink:0;}
+.toggle-row-text{flex:1;}
+.toggle-row-text .t-label{font-weight:600;font-size:0.85rem;}
+.toggle-row-text .t-sub{font-size:0.74rem;color:var(--text-dim);margin-top:0.15rem;}
+.switch{position:relative;width:44px;height:24px;flex-shrink:0;}
+.switch input{opacity:0;width:0;height:0;}
+.switch-track{
+  position:absolute;cursor:pointer;inset:0;
+  background:#2a2a3e;border-radius:20px;
+  transition:background 0.3s ease;
+}
+.switch-track::before{
+  content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;
+  background:#fff;border-radius:50%;transition:transform 0.3s ease;
+}
+.switch input:checked + .switch-track{background:var(--indigo);}
+.switch input:checked + .switch-track::before{transform:translateX(20px);}
+
+.settings-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:1rem;}
+.settings-row:last-child{margin-bottom:0;}
+input[type="range"].form-control{padding:0;accent-color:var(--indigo);height:6px;}
+.position-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;width:150px;}
+.position-box{
+  border:1.5px solid var(--border);border-radius:8px;
+  padding:0.7rem 0.5rem;text-align:center;font-size:0.68rem;color:var(--text-dim);
+  cursor:pointer;transition:all 0.2s ease;background:var(--surface-2);
+}
+.position-box.selected{border-color:var(--indigo);color:var(--indigo-light);background:var(--indigo-dim);}
+.sound-options{display:flex;flex-direction:column;gap:0.6rem;margin-top:0.8rem;}
+.sound-option-row{display:flex;align-items:center;gap:0.6rem;}
+.sound-option-row label{font-size:0.82rem;flex:1;}
+.preview-btn{background:var(--surface-2);border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:0.3rem 0.6rem;font-size:0.72rem;}
+.preview-btn:hover{border-color:var(--indigo);color:var(--indigo-light);}
+.history-row{display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.78rem;}
+.history-row:last-child{border-bottom:none;}
+.history-time{color:var(--text-dimmer);font-family:'JetBrains Mono',monospace;font-size:0.72rem;flex-shrink:0;}
+.history-msg{flex:1;min-width:0;}
+.trigger-badge{font-size:0.66rem;background:var(--surface-2);color:var(--text-dim);padding:0.15rem 0.45rem;border-radius:5px;flex-shrink:0;}
+.test-btn-row{display:flex;gap:0.6rem;flex-wrap:wrap;}
+
+/* ===== AI Assistant ===== */
+.ai-layout{display:flex;gap:1.25rem;height:calc(100vh - 64px - 3rem);}
+.ai-chat-col{flex:1;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;min-width:0;}
+.ai-context-col{width:280px;flex-shrink:0;}
+#chatMessages{flex:1;overflow-y:auto;padding:1.25rem;background:#0d0d15;display:flex;flex-direction:column;gap:0.9rem;}
+.chat-bubble-wrap{display:flex;flex-direction:column;max-width:78%;}
+.chat-bubble-wrap.user{align-self:flex-end;align-items:flex-end;}
+.chat-bubble-wrap.ai{align-self:flex-start;align-items:flex-start;}
+.chat-ai-label{font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.3rem;}
+.chat-bubble{padding:0.7rem 0.95rem;font-size:0.86rem;line-height:1.5;}
+.chat-bubble.user{background:var(--indigo);color:#fff;border-radius:18px 18px 4px 18px;}
+.chat-bubble.ai{background:#1a1a2e;color:var(--text);border-radius:18px 18px 18px 4px;}
+.typing-indicator{display:flex;gap:4px;padding:0.8rem 1rem;background:#1a1a2e;border-radius:18px 18px 18px 4px;width:fit-content;}
+.typing-indicator span{width:6px;height:6px;border-radius:50%;background:var(--text-dim);animation:typingBounce 1.2s infinite;}
+.typing-indicator span:nth-child(2){animation-delay:0.2s;}
+.typing-indicator span:nth-child(3){animation-delay:0.4s;}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0);opacity:0.4;}30%{transform:translateY(-5px);opacity:1;}}
+.chip-row{display:flex;flex-wrap:wrap;gap:0.5rem;padding:0.9rem 1.25rem 0;}
+.chip{background:var(--surface-2);border:1px solid var(--border);color:var(--text-dim);font-size:0.74rem;padding:0.4rem 0.75rem;border-radius:20px;transition:all 0.2s ease;}
+.chip:hover{border-color:var(--indigo);color:var(--indigo-light);}
+.ai-input-bar{display:flex;gap:0.6rem;padding:1rem 1.25rem;border-top:1px solid var(--border);}
+.ai-input-bar input{flex:1;}
+.ai-setup-card{max-width:420px;margin:3rem auto;text-align:center;}
+.ai-setup-card .logo-bolt{margin:0 auto 1rem;}
+.ai-setup-card p.note{font-size:0.74rem;color:var(--text-dimmer);margin-top:0.8rem;}
+.context-task-row{display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;font-size:0.76rem;border-bottom:1px solid var(--border);}
+.context-task-row:last-child{border-bottom:none;}
+.api-connected-badge{display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--p3);background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);padding:0.4rem 0.6rem;border-radius:8px;margin-top:0.9rem;}
+.disconnect-link{font-size:0.72rem;color:var(--text-dimmer);margin-top:0.5rem;display:inline-block;cursor:pointer;}
+.disconnect-link:hover{color:var(--p1);}
+
+/* ===== Responsive ===== */
+@media (max-width:768px){
+  .sidebar{width:64px;}
+  .sidebar .nav-label,.sidebar .logo-text,.dsa-badge .badge-text{display:none;}
+  .logo-row{justify-content:center;padding:1.25rem 0.5rem 1rem;}
+  .nav-item{justify-content:center;padding:0.7rem;}
+  .dsa-badge{justify-content:center;}
+  .dashboard-layout{flex-direction:column;}
+  .dashboard-side{width:100%;}
+  .stats-row{grid-template-columns:repeat(2,1fr);}
+  .algo-columns{grid-template-columns:1fr;}
+  .analytics-stats{grid-template-columns:repeat(2,1fr);}
+  .analytics-charts{grid-template-columns:1fr;}
+  .ai-layout{flex-direction:column;height:auto;}
+  .ai-context-col{width:100%;}
+}
+</style>
+</head>
+<body>
+
+<div id="toastContainer" class="pos-bottom-right"></div>
+
+<aside class="sidebar">
+  <div class="logo-row">
+    <div class="logo-bolt">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M13 2L3 14h7l-1 8 11-13h-7l1-7z" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="logo-text">Task<span>Forge</span></div>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-section="dashboard"><i class="ti ti-layout-dashboard"></i><span class="nav-label">Dashboard</span></a>
+    <a href="#" class="nav-item" data-section="add-task"><i class="ti ti-square-rounded-plus"></i><span class="nav-label">Add Task</span></a>
+    <a href="#" class="nav-item" data-section="algorithm-lab"><i class="ti ti-flask"></i><span class="nav-label">Algorithm Lab</span></a>
+    <a href="#" class="nav-item" data-section="analytics"><i class="ti ti-chart-bar"></i><span class="nav-label">Analytics</span></a>
+    <a href="#" class="nav-item" data-section="notifications"><i class="ti ti-bell"></i><span class="nav-label">Notifications</span></a>
+    <a href="#" class="nav-item" data-section="ai"><i class="ti ti-robot"></i><span class="nav-label">AI Assistant</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="dsa-badge"><span class="pulse-dot"></span><span class="badge-text">DSA Engine: Priority Queue</span></div>
+  </div>
+</aside>
+
+<div class="app-content">
+  <header class="topbar">
+    <h1 id="pageTitle">Dashboard</h1>
+    <div class="topbar-right">
+      <div class="live-clock mono" id="liveClock">00:00:00</div>
+      <div class="status-badge"><span class="status-dot"></span>System Status: Active</div>
+    </div>
+  </header>
+
+  <div class="sections-wrapper">
+
+    <section id="section-dashboard" class="page-section active">
+      <div class="dashboard-layout">
+        <div class="dashboard-main">
+
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-label">Tasks in Queue</div>
+              <div class="stat-value mono"><span id="statQueueSize">0</span></div>
+              <div class="stat-trend trend-up"><i class="ti ti-arrow-up-right"></i> live</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Completed Today</div>
+              <div class="stat-value mono"><span id="statCompletedToday">0</span></div>
+              <div class="stat-trend trend-up"><i class="ti ti-arrow-up-right"></i> session</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Avg Priority</div>
+              <div class="stat-value mono"><span id="statAvgPriority">—</span></div>
+              <div class="stat-trend trend-down"><i class="ti ti-arrow-down-right"></i> lower is urgent</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Next Deadline</div>
+              <div class="stat-value mono" style="font-size:1.15rem;"><span id="statNextDeadline">—</span></div>
+              <div class="stat-trend" style="color:var(--text-dim);"><i class="ti ti-clock"></i> root task</div>
+            </div>
+          </div>
+
+          <div class="queue-header">
+            <h3>Live Queue</h3>
+            <span>Sorted by priority · Min-Heap</span>
+          </div>
+          <div id="taskList"></div>
+
+          <div class="visualizer-box" id="heapVisualizer">
+            <div id="heapSvgWrap"></div>
+            <div id="heapEmptyState">Queue empty — heap at rest</div>
+          </div>
+          <div class="visualizer-label">Root = Next task to execute · Heap property: parent ≤ children</div>
+
+        </div>
+
+        <div class="dashboard-side">
+          <div class="card" id="addTaskCard">
+            <div class="card-title">Add New Task</div>
+            <form id="addTaskForm">
+              <div class="form-group">
+                <label class="form-label">Task Name</label>
+                <input type="text" class="form-control" id="inputTaskName" placeholder="e.g. Refactor auth module" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Priority</label>
+                <select class="form-control" id="inputPriority" required>
+                  <option value="1">P1 — Critical</option>
+                  <option value="2">P2 — Medium</option>
+                  <option value="3" selected>P3 — Low</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Deadline</label>
+                <input type="date" class="form-control" id="inputDeadline" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Category</label>
+                <input type="text" class="form-control" id="inputCategory" placeholder="e.g. Engineering" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" id="inputDescription" rows="3" placeholder="Optional details..."></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">Add to Queue</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Recent Activity</div>
+            <div class="activity-list" id="activityLog"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Quick Load Scenario</div>
+            <div class="quick-load-grid">
+              <button class="btn btn-ghost" data-scenario="hospital">🏥 Hospital ER</button>
+              <button class="btn btn-ghost" data-scenario="sprint">💻 Software Sprint</button>
+              <button class="btn btn-ghost" data-scenario="exams">🎓 Campus Exams</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="section-algorithm-lab" class="page-section">
+      <div class="section-header">
+        <h2>Algorithm Comparison Lab</h2>
+        <p>See how different scheduling algorithms handle the same tasks</p>
+      </div>
+
+      <button class="btn btn-primary" id="runSimulationBtn">▶ Run Scheduling Simulation</button>
+
+      <div class="algo-columns">
+        <div class="algo-card">
+          <div class="algo-badge indigo"><i class="ti ti-check"></i> TaskForge Engine</div>
+          <div id="algoPQList"></div>
+          <div class="algo-stat">Avg Wait Time: <span class="mono" id="algoPQWait">0ms</span></div>
+        </div>
+        <div class="algo-card">
+          <div class="algo-badge gray">Queue</div>
+          <div id="algoFIFOList"></div>
+          <div class="algo-stat">Avg Wait Time: <span class="mono" id="algoFIFOWait">0ms</span></div>
+        </div>
+        <div class="algo-card">
+          <div class="algo-badge amber">Cyclic</div>
+          <div id="algoRRList"></div>
+          <div class="algo-stat">Avg Wait Time: <span class="mono" id="algoRRWait">0ms</span></div>
+        </div>
+      </div>
+
+      <div class="why-box">
+        <h4>Why Priority Queue Wins</h4>
+        <ul>
+          <li><strong>Starvation prevention:</strong> the aging system automatically promotes long-waiting low-priority tasks, so nothing sits in the queue forever.</li>
+          <li><strong>O(log n) insert/extract:</strong> the binary min-heap keeps insertion and extraction logarithmic, vastly outperforming a linear scan for the next task as the queue grows.</li>
+          <li><strong>Mirrors real OS schedulers:</strong> production operating systems use priority-based heaps (with aging) for process scheduling for the exact same reasons.</li>
+        </ul>
+      </div>
+
+      <div class="chart-card">
+        <h4>Average Wait Time by Algorithm</h4>
+        <div class="chart-container"><canvas id="waitTimeChart"></canvas></div>
+      </div>
+    </section>
+    <section id="section-analytics" class="page-section">
+      <div class="section-header">
+        <h2>Analytics Dashboard</h2>
+        <p>Queue performance metrics this session</p>
+      </div>
+
+      <div class="analytics-stats">
+        <div class="analytics-stat-card">
+          <div class="stat-label">Total Tasks Added</div>
+          <div class="stat-value mono" id="anaTotalAdded">0</div>
+        </div>
+        <div class="analytics-stat-card">
+          <div class="stat-label">Total Executed</div>
+          <div class="stat-value mono" id="anaTotalExecuted">0</div>
+        </div>
+        <div class="analytics-stat-card">
+          <div class="stat-label">Peak Queue Size</div>
+          <div class="stat-value mono" id="anaPeakQueue">0</div>
+        </div>
+        <div class="analytics-stat-card">
+          <div class="stat-label">Aging Events Fired</div>
+          <div class="stat-value mono" id="anaAgingEvents">0</div>
+        </div>
+      </div>
+
+      <div class="analytics-charts">
+        <div class="chart-card">
+          <h4>Tasks Executed Over Time</h4>
+          <div class="chart-container"><canvas id="executedOverTimeChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4>Priority Distribution</h4>
+          <div class="chart-container"><canvas id="priorityDoughnutChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-title">Execution History</div>
+        <div id="historyTableWrap">
+          <div class="empty-state" id="historyEmptyState">No tasks executed yet — start executing tasks from the dashboard</div>
+          <table class="history-table" id="historyTable" style="display:none;">
+            <thead>
+              <tr><th>#</th><th>Task Name</th><th>Priority</th><th>Time Added</th><th>Time Executed</th><th>Wait Time</th></tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card health-card">
+        <div class="health-ring-wrap">
+          <svg width="140" height="140" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="#1e1e2e" stroke-width="8"/>
+            <circle id="healthRingFg" cx="50" cy="50" r="45" fill="none" stroke="#22c55e" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 283"/>
+          </svg>
+          <div class="health-score-text mono" id="healthScoreText">—</div>
+        </div>
+        <div class="health-breakdown">
+          <div class="card-title" style="margin-bottom:0.6rem;">Queue Health Score</div>
+          <ul id="healthBreakdownList">
+            <li>P1 tasks executed within 60s: <span class="mono" id="healthP1">—</span></li>
+            <li>No starvation (P3 waiting &gt;120s): <span class="mono" id="healthStarvation">—</span></li>
+            <li>Queue size under 10: <span class="mono" id="healthSize">—</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section id="section-notifications" class="page-section">
+      <div class="section-header">
+        <h2>Notification Settings</h2>
+        <p>Control how TaskForge alerts you</p>
+      </div>
+
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title">Alert Preferences</div>
+        <div class="toggle-row">
+          <i class="ti ti-player-play"></i>
+          <div class="toggle-row-text"><div class="t-label">Task Executed</div><div class="t-sub">Notify when a task is completed</div></div>
+          <label class="switch"><input type="checkbox" id="notifTaskExecuted" data-key="taskExecuted" checked><span class="switch-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <i class="ti ti-arrow-up-bar"></i>
+          <div class="toggle-row-text"><div class="t-label">Priority Bumped</div><div class="t-sub">Notify when bump priority is clicked</div></div>
+          <label class="switch"><input type="checkbox" id="notifPriorityBumped" data-key="priorityBumped" checked><span class="switch-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <i class="ti ti-hourglass"></i>
+          <div class="toggle-row-text"><div class="t-label">Aging Applied</div><div class="t-sub">Notify when aging auto-promotes a task</div></div>
+          <label class="switch"><input type="checkbox" id="notifAgingApplied" data-key="agingApplied" checked><span class="switch-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <i class="ti ti-circle-check"></i>
+          <div class="toggle-row-text"><div class="t-label">Queue Empty</div><div class="t-sub">Notify when last task is executed</div></div>
+          <label class="switch"><input type="checkbox" id="notifQueueEmpty" data-key="queueEmpty" checked><span class="switch-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <i class="ti ti-square-rounded-plus"></i>
+          <div class="toggle-row-text"><div class="t-label">New Task Added</div><div class="t-sub">Notify when a task is added to queue</div></div>
+          <label class="switch"><input type="checkbox" id="notifNewTaskAdded" data-key="newTaskAdded"><span class="switch-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <i class="ti ti-alert-triangle"></i>
+          <div class="toggle-row-text"><div class="t-label">High Priority Alert</div><div class="t-sub">Extra loud alert when a P1 task is added</div></div>
+          <label class="switch"><input type="checkbox" id="notifHighPriorityAlert" data-key="highPriorityAlert" checked><span class="switch-track"></span></label>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title">Toast Appearance</div>
+        <div class="settings-row">
+          <span class="t-label" style="font-size:0.85rem;">Duration</span>
+          <div style="flex:1;display:flex;align-items:center;gap:0.7rem;max-width:260px;">
+            <input type="range" class="form-control" id="toastDurationSlider" min="1" max="8" step="1" value="3">
+            <span class="mono" id="toastDurationValue" style="width:30px;">3s</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="t-label" style="font-size:0.85rem;">Position</span>
+          <div class="position-grid">
+            <div class="position-box" data-position="top-left">Top Left</div>
+            <div class="position-box" data-position="top-right">Top Right</div>
+            <div class="position-box" data-position="bottom-left">Bottom Left</div>
+            <div class="position-box selected" data-position="bottom-right">Bottom Right</div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="t-label" style="font-size:0.85rem;">Max Toasts</span>
+          <select class="form-control" id="maxToastsSelect" style="width:90px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title">Sound Alerts</div>
+        <div class="toggle-row" style="border-bottom:none;">
+          <i class="ti ti-volume"></i>
+          <div class="toggle-row-text"><div class="t-label">Master Sound Toggle</div><div class="t-sub">Play a sound alongside toast notifications</div></div>
+          <label class="switch"><input type="checkbox" id="soundEnabledToggle"><span class="switch-track"></span></label>
+        </div>
+        <div class="sound-options" id="soundOptionsWrap" style="display:none;">
+          <div class="sound-option-row">
+            <input type="radio" name="soundType" value="chime" id="soundChime" checked>
+            <label for="soundChime">Soft chime</label>
+            <button type="button" class="preview-btn" data-sound="chime">Preview</button>
+          </div>
+          <div class="sound-option-row">
+            <input type="radio" name="soundType" value="click" id="soundClick">
+            <label for="soundClick">Click</label>
+            <button type="button" class="preview-btn" data-sound="click">Preview</button>
+          </div>
+          <div class="sound-option-row">
+            <input type="radio" name="soundType" value="beep" id="soundBeep">
+            <label for="soundBeep">Subtle beep</label>
+            <button type="button" class="preview-btn" data-sound="beep">Preview</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title">Notification History <button class="btn btn-ghost" id="clearHistoryBtn" style="padding:0.3rem 0.6rem;font-size:0.72rem;">Clear History</button></div>
+        <div id="notifHistoryEmpty" class="empty-state">No notifications fired yet</div>
+        <div id="notifHistoryList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Test Notifications</div>
+        <div class="test-btn-row">
+          <button class="btn btn-ghost" id="testSuccessBtn">Test Success</button>
+          <button class="btn btn-ghost" id="testWarningBtn">Test Warning</button>
+          <button class="btn btn-ghost" id="testErrorBtn">Test Error</button>
+          <button class="btn btn-ghost" id="testInfoBtn">Test Info</button>
+          <button class="btn btn-primary" id="testFireAllBtn">Fire All</button>
+        </div>
+      </div>
+    </section>
+    <section id="section-ai" class="page-section">
+      <div class="ai-layout" id="aiLayoutWrap">
+
+        <div class="card ai-setup-card" id="aiSetupCard">
+          <div class="logo-bolt" style="width:44px;height:44px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h7l-1 8 11-13h-7l1-7z" fill="#fff"/></svg>
+          </div>
+          <h2 style="margin:0 0 0.3rem;">Connect TaskForge AI</h2>
+          <p style="color:var(--text-dim);font-size:0.85rem;margin:0 0 1.2rem;">Powered by Claude — your intelligent scheduling assistant</p>
+          <div class="form-group" style="text-align:left;">
+            <label class="form-label">Enter your Anthropic API Key</label>
+            <input type="password" class="form-control" id="apiKeyInput" placeholder="sk-ant-...">
+          </div>
+          <button class="btn btn-primary btn-block" id="saveApiKeyBtn">Save &amp; Connect</button>
+          <p class="note">Key stored in localStorage only — never sent anywhere except Anthropic</p>
+        </div>
+
+        <div class="ai-chat-col" id="aiChatCol" style="display:none;">
+          <div class="chip-row" id="chipRow">
+            <div class="chip" data-prompt="What task should I execute next and why?">What task should I execute next and why?</div>
+            <div class="chip" data-prompt="Explain how the min-heap is organizing my queue">Explain how the min-heap is organizing my queue</div>
+            <div class="chip" data-prompt="Are any of my tasks at risk of starvation?">Are any of my tasks at risk of starvation?</div>
+            <div class="chip" data-prompt="Compare my current queue to an ideal scheduling scenario">Compare my current queue to an ideal scheduling scenario</div>
+            <div class="chip" data-prompt="Which tasks should I reprioritize?">Which tasks should I reprioritize?</div>
+          </div>
+          <div id="chatMessages"></div>
+          <div class="ai-input-bar">
+            <input type="text" class="form-control" id="chatInput" placeholder="Ask TaskForge AI about your queue...">
+            <button class="btn btn-primary" id="chatSendBtn"><i class="ti ti-send"></i></button>
+          </div>
+        </div>
+
+        <div class="ai-context-col" id="aiContextCol" style="display:none;">
+          <div class="card">
+            <div class="card-title">Live Queue Context</div>
+            <div id="aiContextTasks"></div>
+            <div style="margin-top:0.8rem;display:flex;align-items:center;gap:0.5rem;">
+              <span class="priority-badge p2" id="aiQueueSizeBadge">Queue Size: 0</span>
+            </div>
+            <div style="font-size:0.72rem;color:var(--p3);margin-top:0.6rem;">● AI has context of your full queue</div>
+            <div class="api-connected-badge" id="apiConnectedBadge"><i class="ti ti-key"></i> API Connected</div>
+            <span class="disconnect-link" id="disconnectApiBtn">Disconnect</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   STATE
+   ========================================================= */
+let nextTaskId = 1;
+const session = {
+  completedToday: 0,
+  totalAdded: 0,
+  totalExecuted: 0,
+  peakQueueSize: 0,
+  agingEvents: 0
+};
+const executionHistory = []; // {name, priority, addedAt, executedAt, waitTime}
+const executionTimeline = []; // {label, cumulative}
+const activityEntries = []; // {time, message, color}
+let notificationSettings = {
+  taskExecuted: true,
+  priorityBumped: true,
+  agingApplied: true,
+  queueEmpty: true,
+  newTaskAdded: false,
+  highPriorityAlert: true,
+  toastDuration: 3,
+  toastPosition: 'bottom-right',
+  maxToasts: 3,
+  soundEnabled: false,
+  soundType: 'chime'
+};
+const notificationHistory = []; // {time, message, trigger, color}
+const activeToasts = [];
+const SIM_SERVICE_TIME = 1500; // assumed ms per task for wait-time simulation
+let waitTimeChart = null;
+let executedOverTimeChart = null;
+let priorityDoughnutChart = null;
+
+/* =========================================================
+   MIN-HEAP ENGINE
+   ========================================================= */
+class MinHeap {
+  constructor(){ this.heap = []; }
+  size(){ return this.heap.length; }
+  peek(){ return this.heap.length ? this.heap[0] : null; }
+  getArray(){ return this.heap.slice(); }
+
+  insert(task){
+    this.heap.push(task);
+    this.heapifyUp(this.heap.length - 1);
+    this._emit();
+  }
+
+  extractMin(){
+    if (this.heap.length === 0) return null;
+    const min = this.heap[0];
+    const last = this.heap.pop();
+    if (this.heap.length > 0){
+      this.heap[0] = last;
+      this.heapifyDown(0);
+    }
+    this._emit();
+    return min;
+  }
+
+  remove(id){
+    const idx = this.heap.findIndex(t => t.id === id);
+    if (idx === -1) return null;
+    const task = this.heap[idx];
+    const last = this.heap.pop();
+    if (idx < this.heap.length){
+      this.heap[idx] = last;
+      this.heapifyDown(idx);
+      this.heapifyUp(idx);
+    }
+    this._emit();
+    return task;
+  }
+
+  buildFromArray(arr){
+    this.heap = arr.slice();
+    for (let i = Math.floor(this.heap.length / 2) - 1; i >= 0; i--){
+      this.heapifyDown(i);
+    }
+    this._emit();
+  }
+
+  heapifyUp(index){
+    while (index > 0){
+      const parent = Math.floor((index - 1) / 2);
+      if (this._compare(this.heap[index], this.heap[parent]) < 0){
+        [this.heap[index], this.heap[parent]] = [this.heap[parent], this.heap[index]];
+        index = parent;
+      } else break;
+    }
+  }
+
+  heapifyDown(index){
+    const n = this.heap.length;
+    while (true){
+      let left = 2 * index + 1, right = 2 * index + 2, smallest = index;
+      if (left < n && this._compare(this.heap[left], this.heap[smallest]) < 0) smallest = left;
+      if (right < n && this._compare(this.heap[right], this.heap[smallest]) < 0) smallest = right;
+      if (smallest !== index){
+        [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
+        index = smallest;
+      } else break;
+    }
+  }
+
+  _compare(a, b){ return a.priority - b.priority; }
+  _emit(){ document.dispatchEvent(new CustomEvent('heapUpdated', { detail: this.heap.slice() })); }
+}
+
+const heap = new MinHeap();
+
+/* =========================================================
+   FORMAT HELPERS
+   ========================================================= */
+function formatClockTime(d){
+  return d.toLocaleTimeString('en-US', { hour12: false });
+}
+function formatDeadline(dateStr){
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function priorityClass(p){ return p === 1 ? 'p1' : p === 2 ? 'p2' : 'p3'; }
+function priorityColor(p){ return p === 1 ? '#ef4444' : p === 2 ? '#f59e0b' : '#22c55e'; }
+
+/* =========================================================
+   TOASTS
+   ========================================================= */
+function checkNotificationEnabled(type){
+  return notificationSettings[type] === true;
+}
+
+function logNotificationHistory(message, trigger, color){
+  notificationHistory.unshift({ time: formatClockTime(new Date()), message, trigger, color });
+  if (notificationHistory.length > 15) notificationHistory.pop();
+  renderNotificationHistory();
+}
+
+function showToast(type, message, trigger){
+  const container = document.getElementById('toastContainer');
+  container.className = 'pos-' + notificationSettings.toastPosition;
+
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  container.appendChild(toast);
+  activeToasts.push(toast);
+
+  while (activeToasts.length > notificationSettings.maxToasts){
+    const oldest = activeToasts.shift();
+    if (oldest && oldest.parentNode) oldest.parentNode.removeChild(oldest);
+  }
+
+  if (notificationSettings.soundEnabled) playSound(notificationSettings.soundType);
+
+  const dismissMs = notificationSettings.toastDuration * 1000;
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => {
+      toast.remove();
+      const idx = activeToasts.indexOf(toast);
+      if (idx !== -1) activeToasts.splice(idx, 1);
+    }, 300);
+  }, dismissMs);
+
+  if (trigger) logNotificationHistory(message, trigger, type === 'success' ? '#22c55e' : type === 'warning' ? '#f59e0b' : type === 'error' ? '#ef4444' : '#6366f1');
+}
+
+/* =========================================================
+   ACTIVITY LOG
+   ========================================================= */
+function addActivity(message, color){
+  activityEntries.push({ time: formatClockTime(new Date()), message, color: color || '#6366f1' });
+  if (activityEntries.length > 20) activityEntries.shift();
+  renderActivityLog();
+}
+
+function renderActivityLog(){
+  const list = document.getElementById('activityLog');
+  list.innerHTML = activityEntries.slice().reverse().map(e => `
+    <div class="activity-item">
+      <span class="activity-dot" style="background:${e.color};"></span>
+      <div><span class="mono">[${e.time}]</span> ${e.message}</div>
+    </div>
+  `).join('');
+  list.scrollTop = 0;
+}
+
+/* =========================================================
+   LIVE CLOCK
+   ========================================================= */
+function tickClock(){
+  document.getElementById('liveClock').textContent = formatClockTime(new Date());
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+/* =========================================================
+   QUEUE RENDERING
+   ========================================================= */
+function renderQueue(){
+  const list = document.getElementById('taskList');
+  const arr = heap.getArray().sort((a, b) => a.priority - b.priority || a.addedAt - b.addedAt);
+
+  list.innerHTML = arr.map(task => `
+    <div class="task-card ${priorityClass(task.priority)}" data-task-id="${task.id}">
+      <span class="priority-badge ${priorityClass(task.priority)}">P${task.priority}</span>
+      <div class="task-info">
+        <div class="task-name">${escapeHtml(task.name)}</div>
+        <div class="task-meta">
+          <span><i class="ti ti-clock"></i>${formatDeadline(task.deadline)}</span>
+          <span class="task-tag">${escapeHtml(task.category)}</span>
+        </div>
+      </div>
+      <div class="task-actions">
+        <button class="btn btn-primary" onclick="executeTask()">Execute</button>
+        <button class="btn btn-ghost" onclick="bumpPriority(${task.id})">Bump Priority</button>
+      </div>
+    </div>
+  `).join('');
+
+  updateMetrics();
+  if (typeof updateAlgorithmLab === 'function') updateAlgorithmLab();
+  if (typeof updateAnalyticsView === 'function') updateAnalyticsView();
+  if (typeof updateAiContext === 'function') updateAiContext();
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function updateMetrics(){
+  const arr = heap.getArray();
+  document.getElementById('statQueueSize').textContent = heap.size();
+  document.getElementById('statCompletedToday').textContent = session.completedToday;
+  document.getElementById('statAvgPriority').textContent = arr.length
+    ? (arr.reduce((s, t) => s + t.priority, 0) / arr.length).toFixed(1)
+    : '—';
+  const root = heap.peek();
+  document.getElementById('statNextDeadline').textContent = root ? formatDeadline(root.deadline) : '—';
+
+  if (heap.size() > session.peakQueueSize) session.peakQueueSize = heap.size();
+}
+
+/* =========================================================
+   ADD TASK
+   ========================================================= */
+document.getElementById('addTaskForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const name = document.getElementById('inputTaskName').value.trim();
+  const priority = parseInt(document.getElementById('inputPriority').value, 10);
+  const deadline = document.getElementById('inputDeadline').value;
+  const category = document.getElementById('inputCategory').value.trim();
+  const description = document.getElementById('inputDescription').value.trim();
+
+  if (!name || !deadline || !category){
+    showToast('error', 'Please fill in all required fields');
+    return;
+  }
+
+  const task = {
+    id: nextTaskId++,
+    name, priority, deadline, category, description,
+    addedAt: Date.now(),
+    waitTime: 0
+  };
+  heap.insert(task);
+  session.totalAdded++;
+  renderQueue();
+  addActivity(`Task added: ${escapeHtml(name)} · P${priority}`, priorityColor(priority));
+
+  if (checkNotificationEnabled('newTaskAdded')){
+    showToast('success', `Task added: ${name}`, 'newTaskAdded');
+  }
+  if (priority === 1 && checkNotificationEnabled('highPriorityAlert')){
+    showToast('error', `🚨 High priority task added: ${name}`, 'highPriorityAlert');
+  }
+
+  this.reset();
+  document.getElementById('inputPriority').value = '3';
+});
+
+/* =========================================================
+   EXECUTE TASK (always extracts the true heap minimum)
+   ========================================================= */
+function executeTask(){
+  if (heap.size() === 0) return;
+  const root = heap.peek();
+  const cardEl = document.querySelector(`[data-task-id="${root.id}"]`);
+  if (cardEl) cardEl.classList.add('executing');
+  flashVisualizerRoot();
+
+  setTimeout(() => {
+    const task = heap.extractMin();
+    if (!task) return;
+
+    session.completedToday++;
+    session.totalExecuted++;
+    const waitTime = Date.now() - task.addedAt;
+    executionHistory.push({ name: task.name, priority: task.priority, addedAt: task.addedAt, executedAt: Date.now(), waitTime });
+    executionTimeline.push({ label: formatClockTime(new Date()), cumulative: session.totalExecuted });
+    if (typeof renderExecutionHistoryTable === 'function') renderExecutionHistoryTable();
+    if (typeof updateExecutedOverTimeChart === 'function') updateExecutedOverTimeChart();
+
+    addActivity(`Task executed: ${escapeHtml(task.name)}`, priorityColor(task.priority));
+    if (checkNotificationEnabled('taskExecuted')){
+      showToast('success', `✓ Executed: ${task.name}`, 'taskExecuted');
+    }
+
+    renderQueue();
+
+    if (heap.size() === 0 && checkNotificationEnabled('queueEmpty')){
+      showToast('info', 'Queue empty — all tasks executed', 'queueEmpty');
+    }
+  }, 600);
+}
+
+/* =========================================================
+   BUMP PRIORITY
+   ========================================================= */
+function bumpPriority(id){
+  const task = heap.remove(id);
+  if (!task) return;
+  if (task.priority > 1) task.priority--;
+  heap.insert(task);
+  renderQueue();
+  addActivity(`Priority bumped: ${escapeHtml(task.name)} → P${task.priority}`, priorityColor(task.priority));
+  if (checkNotificationEnabled('priorityBumped')){
+    showToast('info', `Priority bumped to P${task.priority}`, 'priorityBumped');
+  }
+}
+
+/* =========================================================
+   AGING SYSTEM (every 30s)
+   ========================================================= */
+setInterval(() => {
+  const arr = heap.getArray();
+  if (arr.length === 0) return;
+  const now = Date.now();
+  let promoted = 0;
+
+  arr.forEach(t => {
+    const age = now - t.addedAt;
+    if (t.priority === 3 && age > 60000){
+      t.priority = 2;
+      promoted++;
+      addActivity(`Aging: ${escapeHtml(t.name)} promoted to P2`, '#f59e0b');
+    } else if (t.priority === 2 && age > 90000){
+      t.priority = 1;
+      promoted++;
+      addActivity(`Aging: ${escapeHtml(t.name)} promoted to P1`, '#ef4444');
+    }
+  });
+
+  if (promoted > 0){
+    heap.buildFromArray(arr);
+    session.agingEvents++;
+    renderQueue();
+    if (checkNotificationEnabled('agingApplied')){
+      showToast('warning', `⏰ Aging applied — ${promoted} task${promoted > 1 ? 's' : ''} promoted`, 'agingApplied');
+    }
+  }
+}, 30000);
+
+/* =========================================================
+   QUICK LOAD SCENARIOS
+   ========================================================= */
+const scenarios = {
+  hospital: [
+    { name: 'Triage incoming trauma patient', priority: 1, category: 'ER', daysOut: 0 },
+    { name: 'Administer scheduled medication', priority: 2, category: 'Nursing', daysOut: 0 },
+    { name: 'Restock supply cart', priority: 3, category: 'Logistics', daysOut: 1 },
+    { name: 'Discharge paperwork review', priority: 2, category: 'Admin', daysOut: 1 },
+    { name: 'Code blue response', priority: 1, category: 'ER', daysOut: 0 }
+  ],
+  sprint: [
+    { name: 'Hotfix production outage', priority: 1, category: 'Engineering', daysOut: 0 },
+    { name: 'Review sprint backlog', priority: 2, category: 'Planning', daysOut: 1 },
+    { name: 'Pair on flaky test suite', priority: 2, category: 'QA', daysOut: 1 },
+    { name: 'Update sprint changelog', priority: 3, category: 'Docs', daysOut: 3 },
+    { name: 'Deploy staging build', priority: 1, category: 'DevOps', daysOut: 0 }
+  ],
+  exams: [
+    { name: 'Submit thesis draft', priority: 1, category: 'Academics', daysOut: 0 },
+    { name: 'Study for finals', priority: 2, category: 'Academics', daysOut: 2 },
+    { name: 'Group project meeting', priority: 2, category: 'Group Work', daysOut: 1 },
+    { name: 'Library book return', priority: 3, category: 'Admin', daysOut: 4 },
+    { name: 'Register for next semester', priority: 1, category: 'Admin', daysOut: 0 }
+  ]
+};
+
+document.querySelectorAll('[data-scenario]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const set = scenarios[btn.dataset.scenario];
+    if (!set) return;
+    heap.heap = [];
+    set.forEach(s => {
+      const d = new Date();
+      d.setDate(d.getDate() + s.daysOut);
+      const task = {
+        id: nextTaskId++,
+        name: s.name, priority: s.priority,
+        deadline: d.toISOString().slice(0, 10),
+        category: s.category, description: '',
+        addedAt: Date.now(), waitTime: 0
+      };
+      heap.insert(task);
+      session.totalAdded++;
+    });
+    renderQueue();
+    addActivity(`Scenario loaded: ${btn.textContent.trim()}`, '#6366f1');
+    showToast('info', `Loaded scenario: ${btn.textContent.trim()}`);
+  });
+});
+
+/* =========================================================
+   INITIAL SEED DATA
+   ========================================================= */
+[
+  { name: 'Fix critical login bug', priority: 1, deadline: '2025-06-24', category: 'Engineering' },
+  { name: 'Deploy payment API', priority: 1, deadline: '2025-06-24', category: 'Backend' },
+  { name: 'Code review PR #42', priority: 2, deadline: '2025-06-25', category: 'Engineering' },
+  { name: 'Update user dashboard', priority: 2, deadline: '2025-06-28', category: 'Frontend' },
+  { name: 'Write API documentation', priority: 3, deadline: '2025-06-30', category: 'Docs' }
+].forEach(t => {
+  heap.insert({
+    id: nextTaskId++,
+    name: t.name, priority: t.priority, deadline: t.deadline, category: t.category,
+    description: '', addedAt: Date.now(), waitTime: 0
+  });
+  session.totalAdded++;
+});
+renderQueue();
+
+/* =========================================================
+   D3 HEAP VISUALIZER
+   ========================================================= */
+function arrayToHierarchy(arr, i = 0){
+  if (i >= arr.length) return null;
+  const node = { data: arr[i] };
+  const left = arrayToHierarchy(arr, 2 * i + 1);
+  const right = arrayToHierarchy(arr, 2 * i + 2);
+  const children = [left, right].filter(Boolean);
+  if (children.length) node.children = children;
+  return node;
+}
+
+function renderHeapVisualizer(arr){
+  const wrap = document.getElementById('heapSvgWrap');
+  const emptyState = document.getElementById('heapEmptyState');
+
+  if (!arr || arr.length === 0){
+    wrap.innerHTML = '';
+    emptyState.style.display = 'flex';
+    return;
+  }
+  emptyState.style.display = 'none';
+
+  const width = document.getElementById('heapVisualizer').clientWidth || 600;
+  const nodeCount = arr.length;
+  const depth = Math.floor(Math.log2(nodeCount)) + 1;
+  const height = Math.max(220, depth * 80);
+
+  let svg = d3.select(wrap).select('svg');
+  if (svg.empty()){
+    svg = d3.select(wrap).append('svg')
+      .attr('width', width).attr('height', height);
+    svg.append('g').attr('class', 'links-layer');
+    svg.append('g').attr('class', 'nodes-layer');
+  } else {
+    svg.attr('width', width).attr('height', height);
+  }
+
+  const root = d3.hierarchy(arrayToHierarchy(arr));
+  const treeLayout = d3.tree().size([width - 80, height - 70]);
+  treeLayout(root);
+  root.each(d => { d.x += 40; d.y += 30; });
+
+  const links = root.links();
+  const linkSel = svg.select('.links-layer').selectAll('line')
+    .data(links, d => d.target.data.id);
+
+  linkSel.exit().transition().duration(300).style('opacity', 0).remove();
+
+  linkSel.enter().append('line')
+    .attr('stroke', '#2a2a3e').attr('stroke-width', 2)
+    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+    .attr('x2', d => d.source.x).attr('y2', d => d.source.y)
+    .merge(linkSel)
+    .transition().duration(400)
+    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+
+  const nodesData = root.descendants();
+  const nodeSel = svg.select('.nodes-layer').selectAll('g.heap-node')
+    .data(nodesData, d => d.data.id);
+
+  nodeSel.exit().transition().duration(300)
+    .attr('transform', d => `translate(${d.x},${d.y}) scale(0)`)
+    .style('opacity', 0).remove();
+
+  const nodeEnter = nodeSel.enter().append('g')
+    .attr('class', 'heap-node')
+    .attr('transform', d => `translate(${d.x},${d.y}) scale(0)`);
+
+  nodeEnter.append('circle')
+    .attr('r', d => d.depth === 0 ? 26 : 20)
+    .attr('fill', d => priorityColor(d.data.data.priority))
+    .attr('stroke', '#0a0a0f').attr('stroke-width', 2);
+
+  nodeEnter.append('text')
+    .attr('text-anchor', 'middle').attr('dy', '-0.3em')
+    .attr('fill', '#fff').attr('font-size', '9px').attr('font-weight', '700')
+    .attr('font-family', 'JetBrains Mono, monospace')
+    .text(d => 'P' + d.data.data.priority);
+
+  nodeEnter.append('text')
+    .attr('text-anchor', 'middle').attr('dy', '1em')
+    .attr('fill', '#fff').attr('font-size', '8px')
+    .attr('font-family', 'Space Grotesk, sans-serif')
+    .text(d => d.data.data.name.slice(0, 12));
+
+  const nodeMerge = nodeEnter.merge(nodeSel);
+  nodeMerge.select('circle')
+    .attr('r', d => d.depth === 0 ? 26 : 20)
+    .attr('fill', d => priorityColor(d.data.data.priority));
+  nodeMerge.select('text:nth-of-type(2)').text(d => d.data.data.name.slice(0, 12));
+
+  nodeMerge.transition().duration(400)
+    .attr('transform', d => `translate(${d.x},${d.y}) scale(1)`)
+    .style('opacity', 1);
+}
+
+function flashVisualizerRoot(){
+  const wrap = document.getElementById('heapSvgWrap');
+  const svg = d3.select(wrap).select('svg');
+  if (svg.empty()) return;
+  const rootCircle = svg.select('.nodes-layer').select('g.heap-node circle');
+  if (!rootCircle.empty()){
+    rootCircle.transition().duration(250).attr('fill', '#ef4444')
+      .transition().duration(150).attr('fill', '#ef4444');
+  }
+}
+
+document.addEventListener('heapUpdated', e => {
+  renderHeapVisualizer(e.detail);
+});
+renderHeapVisualizer(heap.getArray());
+window.addEventListener('resize', () => renderHeapVisualizer(heap.getArray()));
+
+/* =========================================================
+   ALGORITHM LAB
+   ========================================================= */
+function computeAlgoOrders(){
+  const arr = heap.getArray();
+  const pqOrder = arr.slice().sort((a, b) => a.priority - b.priority || a.addedAt - b.addedAt);
+  const fifoOrder = arr.slice().sort((a, b) => a.addedAt - b.addedAt);
+  const rrOrder = arr.slice().sort((a, b) => a.priority - b.priority || a.addedAt - b.addedAt);
+  return { pqOrder, fifoOrder, rrOrder };
+}
+
+function avgSimWait(order){
+  if (!order.length) return 0;
+  const total = order.reduce((sum, _, i) => sum + i * SIM_SERVICE_TIME, 0);
+  return Math.round(total / order.length);
+}
+
+function renderAlgoColumn(containerId, order, options){
+  options = options || {};
+  const container = document.getElementById(containerId);
+  container.innerHTML = order.map((task, i) => {
+    let danger = false;
+    if (options.flagLateP1 && task.priority === 1){
+      const pqIndex = options.pqOrder.findIndex(t => t.id === task.id);
+      if (pqIndex !== i) danger = true;
+    }
+    return `<div class="algo-task-row ${danger ? 'danger' : ''}" data-algo-id="${task.id}">
+      <span class="algo-order-num">${i + 1}</span>
+      <span class="algo-task-name">${escapeHtml(task.name)}</span>
+      <span class="priority-badge ${priorityClass(task.priority)}">P${task.priority}</span>
+    </div>`;
+  }).join('') || '<div class="empty-state">No tasks in queue</div>';
+}
+
+function updateAlgorithmLab(){
+  const { pqOrder, fifoOrder, rrOrder } = computeAlgoOrders();
+
+  renderAlgoColumn('algoPQList', pqOrder);
+  renderAlgoColumn('algoFIFOList', fifoOrder, { flagLateP1: true, pqOrder });
+  renderAlgoColumn('algoRRList', rrOrder);
+
+  const pqWait = avgSimWait(pqOrder);
+  const fifoWait = avgSimWait(fifoOrder);
+  const rrWait = avgSimWait(rrOrder);
+
+  document.getElementById('algoPQWait').textContent = pqWait + 'ms';
+  document.getElementById('algoFIFOWait').textContent = fifoWait + 'ms';
+  document.getElementById('algoRRWait').textContent = rrWait + 'ms';
+
+  const ctx = document.getElementById('waitTimeChart');
+  if (!waitTimeChart){
+    waitTimeChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Priority Queue', 'FIFO', 'Round Robin'],
+        datasets: [{
+          data: [pqWait, fifoWait, rrWait],
+          backgroundColor: ['#6366f1', '#65657a', '#f59e0b'],
+          borderRadius: 6
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#9696ad' }, grid: { color: '#1e1e2e' } },
+          y: { ticks: { color: '#e7e7f3' }, grid: { display: false } }
+        }
+      }
+    });
+  } else {
+    waitTimeChart.data.datasets[0].data = [pqWait, fifoWait, rrWait];
+    waitTimeChart.update();
+  }
+}
+
+document.getElementById('runSimulationBtn').addEventListener('click', function(){
+  const btn = this;
+  btn.disabled = true;
+  const { pqOrder, fifoOrder, rrOrder } = computeAlgoOrders();
+  const maxLen = Math.max(pqOrder.length, fifoOrder.length, rrOrder.length);
+  const cols = [
+    { order: pqOrder, container: document.getElementById('algoPQList') },
+    { order: fifoOrder, container: document.getElementById('algoFIFOList') },
+    { order: rrOrder, container: document.getElementById('algoRRList') }
+  ];
+  let step = 0;
+  function runStep(){
+    cols.forEach(c => {
+      c.container.querySelectorAll('.algo-task-row').forEach(r => r.classList.remove('simulating'));
+      const row = c.container.querySelector(`[data-algo-id="${c.order[step] ? c.order[step].id : ''}"]`);
+      if (row) row.classList.add('simulating');
+    });
+    step++;
+    if (step < maxLen){
+      setTimeout(runStep, 400);
+    } else {
+      setTimeout(() => {
+        cols.forEach(c => c.container.querySelectorAll('.algo-task-row').forEach(r => r.classList.remove('simulating')));
+        btn.disabled = false;
+      }, 400);
+    }
+  }
+  if (maxLen > 0) runStep();
+  else btn.disabled = false;
+});
+
+/* =========================================================
+   ANALYTICS
+   ========================================================= */
+function updateAnalyticsView(){
+  document.getElementById('anaTotalAdded').textContent = session.totalAdded;
+  document.getElementById('anaTotalExecuted').textContent = session.totalExecuted;
+  document.getElementById('anaPeakQueue').textContent = session.peakQueueSize;
+  document.getElementById('anaAgingEvents').textContent = session.agingEvents;
+
+  updatePriorityDoughnut();
+  updateHealthScore();
+}
+
+function updatePriorityDoughnut(){
+  const arr = heap.getArray();
+  const counts = [
+    arr.filter(t => t.priority === 1).length,
+    arr.filter(t => t.priority === 2).length,
+    arr.filter(t => t.priority === 3).length
+  ];
+  const ctx = document.getElementById('priorityDoughnutChart');
+  if (!priorityDoughnutChart){
+    priorityDoughnutChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['P1', 'P2', 'P3'],
+        datasets: [{ data: counts, backgroundColor: ['#ef4444', '#f59e0b', '#22c55e'], borderColor: '#12121a', borderWidth: 2 }]
+      },
+      options: { maintainAspectRatio: false, plugins: { legend: { labels: { color: '#e7e7f3' } } } }
+    });
+  } else {
+    priorityDoughnutChart.data.datasets[0].data = counts;
+    priorityDoughnutChart.update();
+  }
+}
+
+function updateExecutedOverTimeChart(){
+  const last10 = executionTimeline.slice(-10);
+  const ctx = document.getElementById('executedOverTimeChart');
+  if (!executedOverTimeChart){
+    executedOverTimeChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: last10.map(e => e.label),
+        datasets: [{
+          label: 'Cumulative Completed',
+          data: last10.map(e => e.cumulative),
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.15)',
+          fill: true, tension: 0.3
+        }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#e7e7f3' } } },
+        scales: {
+          x: { ticks: { color: '#9696ad' }, grid: { color: '#1e1e2e' } },
+          y: { ticks: { color: '#9696ad', precision: 0 }, grid: { color: '#1e1e2e' } }
+        }
+      }
+    });
+  } else {
+    executedOverTimeChart.data.labels = last10.map(e => e.label);
+    executedOverTimeChart.data.datasets[0].data = last10.map(e => e.cumulative);
+    executedOverTimeChart.update();
+  }
+}
+
+function renderExecutionHistoryTable(){
+  const empty = document.getElementById('historyEmptyState');
+  const table = document.getElementById('historyTable');
+  const body = document.getElementById('historyTableBody');
+
+  if (executionHistory.length === 0){
+    empty.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  table.style.display = 'table';
+
+  body.innerHTML = executionHistory.slice().reverse().map((h, idx) => `
+    <tr>
+      <td class="mono">${executionHistory.length - idx}</td>
+      <td>${escapeHtml(h.name)}</td>
+      <td><span class="priority-badge ${priorityClass(h.priority)}">P${h.priority}</span></td>
+      <td class="mono">${formatClockTime(new Date(h.addedAt))}</td>
+      <td class="mono">${formatClockTime(new Date(h.executedAt))}</td>
+      <td class="mono">${(h.waitTime / 1000).toFixed(1)}s</td>
+    </tr>
+  `).join('');
+}
+
+function updateHealthScore(){
+  const arr = heap.getArray();
+  const now = Date.now();
+
+  const p1Executed = executionHistory.filter(h => h.priority === 1);
+  const p1OnTimePct = p1Executed.length
+    ? p1Executed.filter(h => h.waitTime <= 60000).length / p1Executed.length
+    : 1;
+
+  const starvedP3 = arr.some(t => t.priority === 3 && (now - t.addedAt) > 120000);
+  const noStarvation = starvedP3 ? 0 : 1;
+
+  const sizeOk = heap.size() < 10 ? 1 : 0;
+
+  const score = Math.round((p1OnTimePct * 0.4 + noStarvation * 0.4 + sizeOk * 0.2) * 100);
+
+  document.getElementById('healthScoreText').textContent = score;
+  document.getElementById('healthP1').textContent = Math.round(p1OnTimePct * 100) + '%';
+  document.getElementById('healthStarvation').textContent = noStarvation ? 'OK' : 'At risk';
+  document.getElementById('healthSize').textContent = sizeOk ? 'OK' : 'Over limit';
+
+  const ring = document.getElementById('healthRingFg');
+  const circumference = 283;
+  ring.setAttribute('stroke-dasharray', `${(score / 100) * circumference} ${circumference}`);
+  const color = score > 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
+  ring.setAttribute('stroke', color);
+  document.getElementById('healthScoreText').style.color = color;
+}
+
+// hook execution-specific analytics updates into executeTask via event
+document.addEventListener('heapUpdated', updateAnalyticsView);
+
+/* =========================================================
+   NOTIFICATION SETTINGS
+   ========================================================= */
+function saveNotificationSettings(){
+  localStorage.setItem('taskforge_notifications', JSON.stringify(notificationSettings));
+}
+
+function loadNotificationSettings(){
+  const raw = localStorage.getItem('taskforge_notifications');
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    notificationSettings = Object.assign({}, notificationSettings, parsed);
+  } catch (e) { /* ignore corrupt settings */ }
+}
+
+function applyNotificationSettingsToUI(){
+  document.querySelectorAll('#section-notifications input[type="checkbox"][data-key]').forEach(cb => {
+    cb.checked = !!notificationSettings[cb.dataset.key];
+  });
+  document.getElementById('toastDurationSlider').value = notificationSettings.toastDuration;
+  document.getElementById('toastDurationValue').textContent = notificationSettings.toastDuration + 's';
+  document.getElementById('maxToastsSelect').value = notificationSettings.maxToasts;
+  document.querySelectorAll('.position-box').forEach(box => {
+    box.classList.toggle('selected', box.dataset.position === notificationSettings.toastPosition);
+  });
+  document.getElementById('soundEnabledToggle').checked = notificationSettings.soundEnabled;
+  document.getElementById('soundOptionsWrap').style.display = notificationSettings.soundEnabled ? 'flex' : 'none';
+  const radio = document.querySelector(`input[name="soundType"][value="${notificationSettings.soundType}"]`);
+  if (radio) radio.checked = true;
+}
+
+document.querySelectorAll('#section-notifications input[type="checkbox"][data-key]').forEach(cb => {
+  cb.addEventListener('change', () => {
+    notificationSettings[cb.dataset.key] = cb.checked;
+    saveNotificationSettings();
+  });
+});
+
+document.getElementById('toastDurationSlider').addEventListener('input', function(){
+  notificationSettings.toastDuration = parseInt(this.value, 10);
+  document.getElementById('toastDurationValue').textContent = this.value + 's';
+  saveNotificationSettings();
+});
+
+document.getElementById('maxToastsSelect').addEventListener('change', function(){
+  notificationSettings.maxToasts = parseInt(this.value, 10);
+  saveNotificationSettings();
+});
+
+document.querySelectorAll('.position-box').forEach(box => {
+  box.addEventListener('click', () => {
+    notificationSettings.toastPosition = box.dataset.position;
+    document.querySelectorAll('.position-box').forEach(b => b.classList.remove('selected'));
+    box.classList.add('selected');
+    saveNotificationSettings();
+  });
+});
+
+document.getElementById('soundEnabledToggle').addEventListener('change', function(){
+  notificationSettings.soundEnabled = this.checked;
+  document.getElementById('soundOptionsWrap').style.display = this.checked ? 'flex' : 'none';
+  saveNotificationSettings();
+});
+
+document.querySelectorAll('input[name="soundType"]').forEach(r => {
+  r.addEventListener('change', () => {
+    notificationSettings.soundType = r.value;
+    saveNotificationSettings();
+  });
+});
+
+document.querySelectorAll('.preview-btn').forEach(btn => {
+  btn.addEventListener('click', () => playSound(btn.dataset.sound));
+});
+
+function playSound(type){
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+  const ctx = new AudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  let freq = 880, waveType = 'sine', dur = 0.3;
+  if (type === 'chime'){ freq = 880; waveType = 'sine'; dur = 0.3; }
+  else if (type === 'click'){ freq = 1200; waveType = 'square'; dur = 0.05; }
+  else if (type === 'beep'){ freq = 440; waveType = 'sine'; dur = 0.15; }
+
+  osc.type = waveType;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.2, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+  osc.start();
+  osc.stop(ctx.currentTime + dur);
+}
+
+function renderNotificationHistory(){
+  const list = document.getElementById('notifHistoryList');
+  const empty = document.getElementById('notifHistoryEmpty');
+  if (notificationHistory.length === 0){
+    empty.style.display = 'block';
+    list.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = notificationHistory.map(n => `
+    <div class="history-row">
+      <span class="activity-dot" style="background:${n.color};"></span>
+      <span class="history-time">${n.time}</span>
+      <span class="history-msg">${escapeHtml(n.message)}</span>
+      <span class="trigger-badge">${n.trigger}</span>
+    </div>
+  `).join('');
+}
+
+document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+  notificationHistory.length = 0;
+  renderNotificationHistory();
+});
+
+document.getElementById('testSuccessBtn').addEventListener('click', () => showToast('success', 'This is a success notification', 'test'));
+document.getElementById('testWarningBtn').addEventListener('click', () => showToast('warning', 'This is a warning notification', 'test'));
+document.getElementById('testErrorBtn').addEventListener('click', () => showToast('error', 'This is an error notification', 'test'));
+document.getElementById('testInfoBtn').addEventListener('click', () => showToast('info', 'This is an info notification', 'test'));
+document.getElementById('testFireAllBtn').addEventListener('click', () => {
+  const types = [
+    ['success', 'This is a success notification'],
+    ['warning', 'This is a warning notification'],
+    ['error', 'This is an error notification'],
+    ['info', 'This is an info notification']
+  ];
+  types.forEach((t, i) => setTimeout(() => showToast(t[0], t[1], 'test'), i * 500));
+});
+
+loadNotificationSettings();
+applyNotificationSettingsToUI();
+
+/* =========================================================
+   AI ASSISTANT
+   ========================================================= */
+const AI_SYSTEM_PROMPT = "You are TaskForge AI, an intelligent scheduling assistant embedded inside TaskForge — a task scheduling system that uses a Min-Heap Priority Queue as its core DSA engine. You help users understand their task queue, explain DSA concepts, suggest prioritization strategies, and answer questions about scheduling algorithms. You have real-time access to the user's current queue state which is provided in each message. Keep responses concise, helpful, and occasionally explain the DSA reasoning behind your suggestions. When referencing tasks use their exact names. Format responses with short paragraphs — no huge walls of text.";
+
+let conversationHistory = []; // {role, content}
+let chatDisplay = []; // {role: 'user'|'ai', text}
+let aiInitialized = false;
+
+function getApiKey(){ return localStorage.getItem('taskforge_api_key'); }
+
+function initAiSection(){
+  const key = getApiKey();
+  if (key){
+    document.getElementById('aiSetupCard').style.display = 'none';
+    document.getElementById('aiChatCol').style.display = 'flex';
+    document.getElementById('aiContextCol').style.display = 'block';
+    document.getElementById('apiConnectedBadge').style.display = 'flex';
+    if (!aiInitialized){
+      aiInitialized = true;
+      const greeting = `👋 Hey! I'm TaskForge AI. I can see your current queue has ${heap.size()} tasks. I'm connected to your live heap — ask me anything about your tasks, scheduling strategy, or the DSA concepts powering this engine.`;
+      chatDisplay.push({ role: 'ai', text: greeting });
+      renderChat();
+    }
+  } else {
+    document.getElementById('aiSetupCard').style.display = 'block';
+    document.getElementById('aiChatCol').style.display = 'none';
+    document.getElementById('aiContextCol').style.display = 'none';
+  }
+  updateAiContext();
+}
+
+document.getElementById('saveApiKeyBtn').addEventListener('click', () => {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if (!val){
+    showToast('error', 'Please enter a valid API key');
+    return;
+  }
+  localStorage.setItem('taskforge_api_key', val);
+  aiInitialized = false;
+  initAiSection();
+  showToast('success', 'API key saved — TaskForge AI connected');
+});
+
+document.getElementById('disconnectApiBtn').addEventListener('click', () => {
+  localStorage.removeItem('taskforge_api_key');
+  conversationHistory = [];
+  chatDisplay = [];
+  aiInitialized = false;
+  initAiSection();
+});
+
+function updateAiContext(){
+  const arr = heap.getArray().slice().sort((a, b) => a.priority - b.priority || a.addedAt - b.addedAt).slice(0, 5);
+  const list = document.getElementById('aiContextTasks');
+  if (list){
+    list.innerHTML = arr.map(t => `
+      <div class="context-task-row">
+        <span class="priority-badge ${priorityClass(t.priority)}">P${t.priority}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.name)}</span>
+      </div>
+    `).join('') || '<div class="empty-state" style="padding:0.5rem;">No tasks in queue</div>';
+  }
+  const badge = document.getElementById('aiQueueSizeBadge');
+  if (badge) badge.textContent = 'Queue Size: ' + heap.size();
+}
+
+function renderChat(){
+  const wrap = document.getElementById('chatMessages');
+  wrap.innerHTML = chatDisplay.map(m => {
+    if (m.role === 'user'){
+      return `<div class="chat-bubble-wrap user"><div class="chat-bubble user">${escapeHtml(m.text)}</div></div>`;
+    }
+    return `<div class="chat-bubble-wrap ai">
+      <div class="chat-ai-label">⚡ TaskForge AI</div>
+      <div class="chat-bubble ai">${escapeHtml(m.text)}</div>
+    </div>`;
+  }).join('');
+  wrap.scrollTop = wrap.scrollHeight;
+  document.getElementById('chipRow').style.display = chatDisplay.filter(m => m.role === 'user').length === 0 ? 'flex' : 'none';
+}
+
+function showTypingIndicator(){
+  const wrap = document.getElementById('chatMessages');
+  const el = document.createElement('div');
+  el.className = 'chat-bubble-wrap ai';
+  el.id = 'typingIndicatorWrap';
+  el.innerHTML = `<div class="chat-ai-label">⚡ TaskForge AI</div><div class="typing-indicator"><span></span><span></span><span></span></div>`;
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+function hideTypingIndicator(){
+  const el = document.getElementById('typingIndicatorWrap');
+  if (el) el.remove();
+}
+
+async function sendChatMessage(text){
+  if (!text.trim()) return;
+  chatDisplay.push({ role: 'user', text });
+  renderChat();
+
+  const queueContext = heap.getArray().map(t => ({ name: t.name, priority: t.priority, deadline: t.deadline, category: t.category }));
+  const fullContent = `Current queue state: ${JSON.stringify(queueContext)}\n\nUser question: ${text}`;
+
+  conversationHistory.push({ role: 'user', content: fullContent });
+  if (conversationHistory.length > 10) conversationHistory = conversationHistory.slice(-10);
+
+  showTypingIndicator();
+
+  const key = getApiKey();
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'messages-2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: AI_SYSTEM_PROMPT,
+        messages: conversationHistory
+      })
+    });
+
+    hideTypingIndicator();
+
+    if (res.status === 401){
+      showToast('error', 'Invalid API key — please reconnect');
+      localStorage.removeItem('taskforge_api_key');
+      aiInitialized = false;
+      initAiSection();
+      return;
+    }
+    if (res.status === 429){
+      showToast('warning', 'Rate limited — please wait a moment');
+      return;
+    }
+    if (!res.ok){
+      chatDisplay.push({ role: 'ai', text: 'Connection error — check your internet and try again.' });
+      renderChat();
+      return;
+    }
+
+    const data = await res.json();
+    const replyText = data.content && data.content[0] ? data.content[0].text : 'Sorry, I had trouble generating a response.';
+    conversationHistory.push({ role: 'assistant', content: replyText });
+    if (conversationHistory.length > 10) conversationHistory = conversationHistory.slice(-10);
+    chatDisplay.push({ role: 'ai', text: replyText });
+    renderChat();
+  } catch (err){
+    hideTypingIndicator();
+    chatDisplay.push({ role: 'ai', text: 'Connection error — check your internet and try again.' });
+    renderChat();
+  }
+}
+
+document.getElementById('chatSendBtn').addEventListener('click', () => {
+  const input = document.getElementById('chatInput');
+  const text = input.value;
+  input.value = '';
+  sendChatMessage(text);
+});
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    document.getElementById('chatSendBtn').click();
+  }
+});
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.getElementById('chatInput').value = chip.dataset.prompt;
+    document.getElementById('chatSendBtn').click();
+  });
+});
+
+/* =========================================================
+   NAV / SECTION SWITCHING
+   ========================================================= */
+const sectionTitles = {
+  dashboard: 'Dashboard',
+  'algorithm-lab': 'Algorithm Lab',
+  analytics: 'Analytics',
+  notifications: 'Notifications',
+  ai: 'AI Assistant'
+};
+const sectionElementId = {
+  dashboard: 'section-dashboard',
+  'algorithm-lab': 'section-algorithm-lab',
+  analytics: 'section-analytics',
+  notifications: 'section-notifications',
+  ai: 'section-ai'
+};
+
+function showSection(key){
+  const targetKey = key === 'add-task' ? 'dashboard' : key;
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.getElementById(sectionElementId[targetKey]).classList.add('active');
+  document.getElementById('pageTitle').textContent = key === 'add-task' ? 'Add Task' : sectionTitles[targetKey];
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === key));
+
+  if (targetKey === 'algorithm-lab') updateAlgorithmLab();
+  if (targetKey === 'analytics'){
+    updateAnalyticsView();
+    renderExecutionHistoryTable();
+    updateExecutedOverTimeChart();
+  }
+  if (targetKey === 'notifications'){
+    applyNotificationSettingsToUI();
+    renderNotificationHistory();
+  }
+  if (targetKey === 'ai') initAiSection();
+
+  if (key === 'add-task'){
+    setTimeout(() => {
+      document.getElementById('inputTaskName').focus();
+      document.getElementById('addTaskCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }
+}
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', e => {
+    e.preventDefault();
+    showSection(item.dataset.section);
+  });
+});
+</script>
+
+<!--
+HOW TO RUN TASKFORGE LOCALLY
+==============================
+Option 1 — VS Code Live Server (recommended):
+1. Install "Live Server" extension by Ritwick Dey in VS Code
+2. Right-click index.html in the file explorer
+3. Select "Open with Live Server"
+4. Browser opens automatically at http://127.0.0.1:5500/index.html
+
+Option 2 — Python (no install needed if Python is installed):
+Open terminal in the folder containing index.html and run:
+  python -m http.server 3000
+Then open browser at: http://localhost:3000
+
+Option 3 — Node.js (if Node is installed):
+Run in terminal:
+  npx serve .
+Then open browser at: http://localhost:3000
+
+Option 4 — Direct file (simplest, no server needed):
+Just double-click index.html — opens directly in browser.
+Note: AI Assistant panel requires a server (not file://) due to API CORS policy.
+All other features work without a server.
+-->
+</body>
+</html>
